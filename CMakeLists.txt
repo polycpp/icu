@@ -23,11 +23,16 @@ project(icu-cmake VERSION 79.0.1 LANGUAGES C CXX)
 # Options:
 #   ICU_SOURCE_DIR  — Path to icu4c/source (auto-fetched if not set)
 #   ICU_BUILD_SHARED — Build shared libraries instead of static (default OFF)
-#   ICU_DATA_MODE   — "stubdata" (default, minimal) or "archive" (full data)
+#   ICU_DATA_MODE   — "stubdata" (minimal), "prebuilt" (use pre-built DLL), or "archive" (full)
 
 option(ICU_BUILD_SHARED "Build ICU as shared libraries" OFF)
-set(ICU_DATA_MODE "stubdata" CACHE STRING "Data mode: stubdata (minimal) or archive (full)")
-set_property(CACHE ICU_DATA_MODE PROPERTY STRINGS stubdata archive)
+set(ICU_DATA_MODE "stubdata" CACHE STRING
+    "Data mode: stubdata (minimal), prebuilt (use pre-built data DLL), archive (full)")
+set_property(CACHE ICU_DATA_MODE PROPERTY STRINGS stubdata prebuilt archive)
+
+# For prebuilt mode: path to directory containing icudt<ver>.dll and icudt.lib
+set(ICU_PREBUILT_DIR "" CACHE PATH
+    "Path to pre-built ICU binaries (containing icudt*.dll + icudt.lib). Auto-detected from ICU repo.")
 
 # ── Fetch ICU source if not provided ────────────────────────────────────────
 
@@ -111,29 +116,92 @@ function(icu_target_settings target)
 endfunction()
 
 # ============================================================================
-# Target: icudata (stub data library)
+# Target: icudata
 # ============================================================================
-# The stub data library provides an empty data package. This is sufficient for
-# ICU initialization. Full locale data can be loaded at runtime via ICU_DATA
-# environment variable or u_setDataDirectory().
+# Three modes:
+#   stubdata — compile empty stub (minimal, no locale data)
+#   prebuilt — use pre-built icudt.lib + icudt<ver>.dll from ICU release
+#   archive  — load .dat file at runtime via ICU_DATA path
 
-add_library(icudata ${_icu_lib_type} "${ICU_STUB_DIR}/stubdata.cpp")
-icu_target_settings(icudata)
+if(ICU_DATA_MODE STREQUAL "prebuilt")
+    # ── Pre-built data DLL mode ─────────────────────────────────────────
+    # Use the import library + DLL from an existing ICU build/release.
+    # Auto-detect from ICU repo structure if ICU_PREBUILT_DIR not set.
+    if(NOT ICU_PREBUILT_DIR)
+        # Try <ICU_SOURCE_DIR>/../lib64 (standard ICU repo layout)
+        get_filename_component(_icu_parent "${ICU_SOURCE_DIR}" DIRECTORY)
+        if(EXISTS "${_icu_parent}/lib64/icudt.lib")
+            set(ICU_PREBUILT_DIR "${_icu_parent}" CACHE PATH "" FORCE)
+        elseif(EXISTS "${_icu_parent}/lib/icudt.lib")
+            set(ICU_PREBUILT_DIR "${_icu_parent}" CACHE PATH "" FORCE)
+        else()
+            message(FATAL_ERROR "ICU_DATA_MODE=prebuilt but cannot find icudt.lib. "
+                "Set ICU_PREBUILT_DIR to directory containing lib64/icudt.lib and bin64/icudt${ICU_MAJOR_VERSION}.dll")
+        endif()
+    endif()
 
-target_include_directories(icudata
-    PUBLIC  "$<BUILD_INTERFACE:${ICU_COMMON_DIR}>"
-    PRIVATE "${ICU_COMMON_DIR}"
-)
+    # Find the import lib and DLL
+    find_library(_icu_data_implib NAMES icudt
+        PATHS "${ICU_PREBUILT_DIR}/lib64" "${ICU_PREBUILT_DIR}/lib"
+        NO_DEFAULT_PATH)
+    find_file(_icu_data_dll NAMES "icudt${ICU_MAJOR_VERSION}.dll"
+        PATHS "${ICU_PREBUILT_DIR}/bin64" "${ICU_PREBUILT_DIR}/bin"
+        NO_DEFAULT_PATH)
 
-if(ICU_BUILD_SHARED)
-    target_compile_definitions(icudata PRIVATE U_DATA_IMPLEMENTATION)
+    if(NOT _icu_data_implib)
+        message(FATAL_ERROR "Cannot find icudt.lib in ${ICU_PREBUILT_DIR}/lib64")
+    endif()
+
+    message(STATUS "ICU data: pre-built ${_icu_data_implib}")
+    if(_icu_data_dll)
+        message(STATUS "ICU data DLL: ${_icu_data_dll}")
+    endif()
+
+    # Create imported target for the pre-built data library
+    add_library(icudata SHARED IMPORTED GLOBAL)
     set_target_properties(icudata PROPERTIES
-        OUTPUT_NAME "icudt${ICU_MAJOR_VERSION}"
+        IMPORTED_IMPLIB "${_icu_data_implib}"
+        INTERFACE_INCLUDE_DIRECTORIES "${ICU_COMMON_DIR}"
     )
+    if(_icu_data_dll)
+        set_target_properties(icudata PROPERTIES
+            IMPORTED_LOCATION "${_icu_data_dll}"
+        )
+    endif()
+
+    # Copy DLL to output directory so tests can find it
+    if(_icu_data_dll)
+        # Create a custom target to copy the DLL at build time
+        add_custom_target(icu_copy_data_dll ALL
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_icu_data_dll}"
+                "$<TARGET_FILE_DIR:icuuc>"
+            COMMENT "Copying icudt${ICU_MAJOR_VERSION}.dll to output directory"
+        )
+    endif()
+
 else()
-    set_target_properties(icudata PROPERTIES
-        OUTPUT_NAME "icudt"
+    # ── Stubdata or archive mode ────────────────────────────────────────
+    # Build data from source (stub = empty, archive = full at runtime)
+
+    add_library(icudata ${_icu_lib_type} "${ICU_STUB_DIR}/stubdata.cpp")
+    icu_target_settings(icudata)
+
+    target_include_directories(icudata
+        PUBLIC  "$<BUILD_INTERFACE:${ICU_COMMON_DIR}>"
+        PRIVATE "${ICU_COMMON_DIR}"
     )
+
+    if(ICU_BUILD_SHARED)
+        target_compile_definitions(icudata PRIVATE U_DATA_IMPLEMENTATION)
+        set_target_properties(icudata PROPERTIES
+            OUTPUT_NAME "icudt${ICU_MAJOR_VERSION}"
+        )
+    else()
+        set_target_properties(icudata PROPERTIES
+            OUTPUT_NAME "icudt"
+        )
+    endif()
 endif()
 
 # ============================================================================
@@ -234,6 +302,8 @@ if(ICU_DATA_MODE STREQUAL "archive")
     )
 
     message(STATUS "ICU data mode: archive (${ICU_DATA_ARCHIVE_DIR})")
+elseif(ICU_DATA_MODE STREQUAL "prebuilt")
+    message(STATUS "ICU data mode: prebuilt (${_icu_data_implib})")
 else()
     message(STATUS "ICU data mode: stubdata (minimal, no locale data)")
 endif()
