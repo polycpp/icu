@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(icu-cmake VERSION 79.0.1 LANGUAGES C CXX)
+project(icu-cmake VERSION 78.3 LANGUAGES C CXX)
 
 # ============================================================================
 # ICU CMake Build Wrapper
@@ -11,8 +11,8 @@ project(icu-cmake VERSION 79.0.1 LANGUAGES C CXX)
 #
 # Usage (as FetchContent):
 #   FetchContent_Declare(icu
-#       GIT_REPOSITORY https://github.com/<org>/icu-cmake.git
-#       GIT_TAG main)
+#       GIT_REPOSITORY https://github.com/aspect-build/icu-cmake.git
+#       GIT_TAG icu/78)
 #   FetchContent_MakeAvailable(icu)
 #   target_link_libraries(myapp PRIVATE ICU::uc ICU::i18n ICU::data)
 #
@@ -40,7 +40,7 @@ if(NOT ICU_SOURCE_DIR)
     include(FetchContent)
     FetchContent_Declare(icu_source
         GIT_REPOSITORY https://github.com/unicode-org/icu.git
-        GIT_TAG        release-79-1
+        GIT_TAG        release-78.3
         GIT_SHALLOW    TRUE
         GIT_PROGRESS   TRUE
     )

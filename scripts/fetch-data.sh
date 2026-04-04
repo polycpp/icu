@@ -9,23 +9,40 @@
 #   ./scripts/fetch-data.sh [version] [output-dir]
 #
 # Examples:
-#   ./scripts/fetch-data.sh 79 ./data
-#   ./scripts/fetch-data.sh          # defaults: version=79, output=./data
+#   ./scripts/fetch-data.sh 78.3 ./data
+#   ./scripts/fetch-data.sh            # defaults: version=78.3, output=./data
 #
-# The downloaded file will be: <output-dir>/icudt<ver>l.dat
+# The downloaded file will be: <output-dir>/icudt<major>l.dat
 # ('l' suffix = little-endian, used on x86/x64/ARM)
 
 set -euo pipefail
 
-ICU_VERSION="${1:-79}"
+ICU_VERSION="${1:-78.3}"
 OUTPUT_DIR="${2:-./data}"
-FILENAME="icudt${ICU_VERSION}l.dat"
 
-# ICU data releases are published on GitHub releases
+# Extract major version (e.g. "78" from "78.3", or "77" from "77")
+ICU_MAJOR="${ICU_VERSION%%[.-]*}"
+FILENAME="icudt${ICU_MAJOR}l.dat"
+
+# ICU data releases are published on GitHub releases.
+# Tag/asset naming changed at version 78:
+#   ≤77: tag=release-77-1   asset=icu4c-77_1-data-bin-l.zip
+#   ≥78: tag=release-78.3   asset=icu4c-78.3-data-bin-l.zip
 BASE_URL="https://github.com/unicode-org/icu/releases/download"
-# The tag format varies — try both patterns
-TAG="release-${ICU_VERSION}-1"
-DATA_URL="${BASE_URL}/${TAG}/icu4c-${ICU_VERSION}_1-data-bin-l.zip"
+
+if [ "${ICU_MAJOR}" -ge 78 ] 2>/dev/null; then
+    TAG="release-${ICU_VERSION}"
+    DATA_URL="${BASE_URL}/${TAG}/icu4c-${ICU_VERSION}-data-bin-l.zip"
+else
+    TAG="release-${ICU_VERSION//./-}"
+    ASSET_VER="${ICU_VERSION//./_}"
+    # Default to X_1 if no minor version was given (e.g. "77" → "77_1")
+    if [[ "${ASSET_VER}" != *_* ]]; then
+        TAG="${TAG}-1"
+        ASSET_VER="${ASSET_VER}_1"
+    fi
+    DATA_URL="${BASE_URL}/${TAG}/icu4c-${ASSET_VER}-data-bin-l.zip"
+fi
 
 mkdir -p "${OUTPUT_DIR}"
 

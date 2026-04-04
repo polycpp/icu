@@ -1,6 +1,9 @@
-# icu-cmake
+# icu-cmake — ICU 78
 
 CMake build wrapper for [ICU4C](https://github.com/unicode-org/icu) (International Components for Unicode).
+
+This branch builds **ICU 78** (release-78.3). For other versions, see the
+[main branch](../../tree/master) for available version branches.
 
 ICU upstream uses MSBuild on Windows and autoconf on POSIX. This project provides
 a CMake-native build that produces `ICU::uc`, `ICU::i18n`, and `ICU::data` targets,
@@ -13,8 +16,8 @@ making ICU easy to integrate via `FetchContent` or `add_subdirectory`.
 ```cmake
 include(FetchContent)
 FetchContent_Declare(icu
-    GIT_REPOSITORY https://github.com/<org>/icu-cmake.git
-    GIT_TAG main)
+    GIT_REPOSITORY https://github.com/aspect-build/icu-cmake.git
+    GIT_TAG icu/78)
 FetchContent_MakeAvailable(icu)
 
 target_link_libraries(myapp PRIVATE ICU::uc ICU::i18n)
@@ -22,21 +25,7 @@ target_link_libraries(myapp PRIVATE ICU::uc ICU::i18n)
 
 ### With a local ICU source checkout
 
-```cmake
-# Point to existing ICU source (avoids re-downloading)
-FetchContent_Declare(icu
-    GIT_REPOSITORY https://github.com/<org>/icu-cmake.git
-    GIT_TAG main)
-FetchContent_MakeAvailable(icu)
-# In your cmake invocation:
-# -DICU_SOURCE_DIR=E:/repo/icu/icu4c/source
-```
-
-### Standalone build
-
 ```bash
-git clone https://github.com/<org>/icu-cmake.git
-cd icu-cmake
 cmake -B build -DICU_SOURCE_DIR=/path/to/icu/icu4c/source
 cmake --build build --config Release
 ```
@@ -55,8 +44,8 @@ cmake --build build --config Release
 |--------|---------|-------------|
 | `ICU_SOURCE_DIR` | *(auto-fetch)* | Path to `icu4c/source`. If not set, ICU is fetched via git. |
 | `ICU_BUILD_SHARED` | `OFF` | Build shared (DLL) instead of static libraries |
-| `ICU_DATA_MODE` | `stubdata` | `stubdata` = minimal (no locale data), `archive` = full data |
-| `ICU_DATA_ARCHIVE_DIR` | `${CMAKE_BINARY_DIR}/data` | Where to find `icudt<ver>l.dat` (archive mode) |
+| `ICU_DATA_MODE` | `stubdata` | `stubdata` = minimal (no locale data), `prebuilt` = pre-built DLL, `archive` = full data |
+| `ICU_DATA_ARCHIVE_DIR` | `${CMAKE_BINARY_DIR}/data` | Where to find `icudt78l.dat` (archive mode) |
 
 ## ICU Data
 
@@ -72,7 +61,7 @@ break iteration with dictionary data), you need the full data archive:
 
 ```bash
 # Download the data archive
-./scripts/fetch-data.sh 79 ./data
+./scripts/fetch-data.sh 78.3 ./data
 
 # Build with full data
 cmake -B build -DICU_DATA_MODE=archive -DICU_DATA_ARCHIVE_DIR=./data
