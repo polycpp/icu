@@ -6,80 +6,29 @@ ICU upstream uses MSBuild on Windows and autoconf on POSIX. This project provide
 a CMake-native build that produces `ICU::uc`, `ICU::i18n`, and `ICU::data` targets,
 making ICU easy to integrate via `FetchContent` or `add_subdirectory`.
 
-## Quick Start
+## Version Branches
 
-### As a FetchContent dependency
+Each ICU major version lives on its own branch. Pick the branch matching the
+ICU version you need:
+
+| Branch | ICU Version | Status |
+|--------|-------------|--------|
+| [`icu/78`](../../tree/icu/78) | ICU 78 (release-78.3) | **Latest** |
+
+## Quick Start
 
 ```cmake
 include(FetchContent)
 FetchContent_Declare(icu
-    GIT_REPOSITORY https://github.com/<org>/icu-cmake.git
-    GIT_TAG main)
+    GIT_REPOSITORY https://github.com/aspect-build/icu-cmake.git
+    GIT_TAG icu/78)       # ← pick your ICU version branch
 FetchContent_MakeAvailable(icu)
 
 target_link_libraries(myapp PRIVATE ICU::uc ICU::i18n)
 ```
 
-### With a local ICU source checkout
-
-```cmake
-# Point to existing ICU source (avoids re-downloading)
-FetchContent_Declare(icu
-    GIT_REPOSITORY https://github.com/<org>/icu-cmake.git
-    GIT_TAG main)
-FetchContent_MakeAvailable(icu)
-# In your cmake invocation:
-# -DICU_SOURCE_DIR=E:/repo/icu/icu4c/source
-```
-
-### Standalone build
-
-```bash
-git clone https://github.com/<org>/icu-cmake.git
-cd icu-cmake
-cmake -B build -DICU_SOURCE_DIR=/path/to/icu/icu4c/source
-cmake --build build --config Release
-```
-
-## CMake Targets
-
-| Target | Alias | Library | Description |
-|--------|-------|---------|-------------|
-| `icuuc` | `ICU::uc` | icuuc | Unicode common (normalization, properties, converters) |
-| `icui18n` | `ICU::i18n` | icuin | Internationalization (collation, formatting, regex) |
-| `icudata` | `ICU::data` | icudt | Data (stub by default, full archive optional) |
-
-## Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `ICU_SOURCE_DIR` | *(auto-fetch)* | Path to `icu4c/source`. If not set, ICU is fetched via git. |
-| `ICU_BUILD_SHARED` | `OFF` | Build shared (DLL) instead of static libraries |
-| `ICU_DATA_MODE` | `stubdata` | `stubdata` = minimal (no locale data), `archive` = full data |
-| `ICU_DATA_ARCHIVE_DIR` | `${CMAKE_BINARY_DIR}/data` | Where to find `icudt<ver>l.dat` (archive mode) |
-
-## ICU Data
-
-By default, ICU is built with **stub data** — a minimal empty data package. This is
-sufficient for:
-- Unicode normalization (NFC, NFD, etc.)
-- Unicode character properties
-- Basic string operations
-- Case mapping (simple)
-
-For full locale-aware functionality (collation, date formatting, number formatting,
-break iteration with dictionary data), you need the full data archive:
-
-```bash
-# Download the data archive
-./scripts/fetch-data.sh 79 ./data
-
-# Build with full data
-cmake -B build -DICU_DATA_MODE=archive -DICU_DATA_ARCHIVE_DIR=./data
-```
-
-At runtime, set `ICU_DATA` environment variable to the directory containing the `.dat`
-file, or use `u_setDataDirectory()` in code.
+See the version branch README for full documentation, build options, and data
+archive setup.
 
 ## Supported Platforms
 
