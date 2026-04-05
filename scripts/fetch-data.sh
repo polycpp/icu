@@ -17,7 +17,7 @@
 
 set -euo pipefail
 
-ICU_VERSION="${1:-78.3}"
+ICU_VERSION="${1:-74.2}"
 OUTPUT_DIR="${2:-./data}"
 
 # Extract major version (e.g. "78" from "78.3", or "77" from "77")
