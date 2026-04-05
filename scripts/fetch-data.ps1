@@ -7,7 +7,7 @@
 #   .\scripts\fetch-data.ps1 [-Version 78.3] [-OutputDir ./data]
 
 param(
-    [string]$Version = "78.3",
+    [string]$Version = "72.1",
     [string]$OutputDir = "./data"
 )
 
