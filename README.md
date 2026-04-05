@@ -1,9 +1,9 @@
-# icu-cmake — ICU 78
+# icu-cmake — ICU 75
 
 CMake build wrapper for [ICU4C](https://github.com/unicode-org/icu) (International Components for Unicode).
 
-This branch builds **ICU 78** (defaults to release-78.3). To use a different
-patch version, pass `-DICU_VERSION=78.1`. For other major versions, see the
+This branch builds **ICU 75** (defaults to release-75-1). To use a different
+patch version, pass `-DICU_VERSION=75.1`. For other major versions, see the
 [main branch](../../tree/master) for available version branches.
 
 ICU upstream uses MSBuild on Windows and autoconf on POSIX. This project provides
@@ -18,7 +18,7 @@ making ICU easy to integrate via `FetchContent` or `add_subdirectory`.
 include(FetchContent)
 FetchContent_Declare(icu
     GIT_REPOSITORY https://github.com/aspect-build/icu-cmake.git
-    GIT_TAG icu/78)
+    GIT_TAG icu/75)
 FetchContent_MakeAvailable(icu)
 
 target_link_libraries(myapp PRIVATE ICU::uc ICU::i18n)
@@ -43,11 +43,11 @@ cmake --build build --config Release
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `ICU_VERSION` | `78.3` | ICU release version to fetch (e.g. `78.1`, `78.2`, `78.3`) |
+| `ICU_VERSION` | `75.1` | ICU release version to fetch (e.g. `75.1`) |
 | `ICU_SOURCE_DIR` | *(auto-fetch)* | Path to `icu4c/source`. If not set, ICU is fetched via git. |
 | `ICU_BUILD_SHARED` | `OFF` | Build shared (DLL) instead of static libraries |
 | `ICU_DATA_MODE` | `stubdata` | `stubdata` = minimal (no locale data), `prebuilt` = pre-built DLL, `archive` = full data |
-| `ICU_DATA_ARCHIVE_DIR` | `${CMAKE_BINARY_DIR}/data` | Where to find `icudt78l.dat` (archive mode) |
+| `ICU_DATA_ARCHIVE_DIR` | `${CMAKE_BINARY_DIR}/data` | Where to find `icudt75l.dat` (archive mode) |
 
 ## ICU Data
 
@@ -63,7 +63,7 @@ break iteration with dictionary data), you need the full data archive:
 
 ```bash
 # Download the data archive
-./scripts/fetch-data.sh 78.3 ./data
+./scripts/fetch-data.sh 75.1 ./data
 
 # Build with full data
 cmake -B build -DICU_DATA_MODE=archive -DICU_DATA_ARCHIVE_DIR=./data
