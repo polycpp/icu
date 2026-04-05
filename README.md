@@ -14,6 +14,14 @@ ICU version you need:
 | Branch | ICU Version | Status |
 |--------|-------------|--------|
 | [`icu/78`](../../tree/icu/78) | ICU 78 (release-78.3) | **Latest** |
+| [`icu/77`](../../tree/icu/77) | ICU 77 (release-77-1) | |
+| [`icu/76`](../../tree/icu/76) | ICU 76 (release-76-1) | |
+| [`icu/75`](../../tree/icu/75) | ICU 75 (release-75-1) | |
+| [`icu/74`](../../tree/icu/74) | ICU 74 (release-74-2) | |
+| [`icu/73`](../../tree/icu/73) | ICU 73 (release-73-2) | |
+| [`icu/72`](../../tree/icu/72) | ICU 72 (release-72-1) | |
+| [`icu/71`](../../tree/icu/71) | ICU 71 (release-71-1) | |
+| [`icu/70`](../../tree/icu/70) | ICU 70 (release-70-1) | |
 
 ## Quick Start
 
