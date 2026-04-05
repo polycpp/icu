@@ -21,10 +21,13 @@ project(icu-cmake VERSION 78.3 LANGUAGES C CXX)
 #   cmake --build build --config Release
 #
 # Options:
+#   ICU_VERSION     — ICU patch version to fetch (default "78.3")
 #   ICU_SOURCE_DIR  — Path to icu4c/source (auto-fetched if not set)
 #   ICU_BUILD_SHARED — Build shared libraries instead of static (default OFF)
 #   ICU_DATA_MODE   — "stubdata" (minimal), "prebuilt" (use pre-built DLL), or "archive" (full)
 
+set(ICU_VERSION "78.3" CACHE STRING
+    "ICU release version to fetch (e.g. 78.1, 78.2, 78.3)")
 option(ICU_BUILD_SHARED "Build ICU as shared libraries" OFF)
 set(ICU_DATA_MODE "stubdata" CACHE STRING
     "Data mode: stubdata (minimal), prebuilt (use pre-built data DLL), archive (full)")
@@ -40,7 +43,7 @@ if(NOT ICU_SOURCE_DIR)
     include(FetchContent)
     FetchContent_Declare(icu_source
         GIT_REPOSITORY https://github.com/unicode-org/icu.git
-        GIT_TAG        release-78.3
+        GIT_TAG        "release-${ICU_VERSION}"
         GIT_SHALLOW    TRUE
         GIT_PROGRESS   TRUE
     )
