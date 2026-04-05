@@ -48,6 +48,7 @@ cmake --build build --config Release
 | `ICU_BUILD_SHARED` | `OFF` | Build shared (DLL) instead of static libraries |
 | `ICU_DATA_MODE` | `stubdata` | `stubdata` = minimal (no locale data), `prebuilt` = pre-built DLL, `archive` = full data |
 | `ICU_DATA_ARCHIVE_DIR` | `${CMAKE_BINARY_DIR}/data` | Where to find `icudt74l.dat` (archive mode) |
+| `ICU_BUILD_TESTS` | `OFF` | Build upstream ICU test suites (`cintltst`, `intltest`) |
 
 ## ICU Data
 
@@ -71,6 +72,17 @@ cmake -B build -DICU_DATA_MODE=archive -DICU_DATA_ARCHIVE_DIR=./data
 
 At runtime, set `ICU_DATA` environment variable to the directory containing the `.dat`
 file, or use `u_setDataDirectory()` in code.
+
+## Running Tests
+
+To build and run the upstream ICU test suites (`cintltst` and `intltest`):
+
+```bash
+./scripts/fetch-data.sh 74.2 ./data
+cmake -B build -DICU_BUILD_TESTS=ON -DICU_DATA_MODE=archive -DICU_DATA_ARCHIVE_DIR=./data
+cmake --build build
+cd build && ctest --output-on-failure
+```
 
 ## Supported Platforms
 
