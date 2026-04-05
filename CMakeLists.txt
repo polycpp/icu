@@ -25,10 +25,12 @@ project(icu-cmake VERSION 70.1 LANGUAGES C CXX)
 #   ICU_SOURCE_DIR  — Path to icu4c/source (auto-fetched if not set)
 #   ICU_BUILD_SHARED — Build shared libraries instead of static (default OFF)
 #   ICU_DATA_MODE   — "stubdata" (minimal), "prebuilt" (use pre-built DLL), or "archive" (full)
+#   ICU_BUILD_TESTS — Build ICU test suites: cintltst, intltest (default OFF)
 
 set(ICU_VERSION "70.1" CACHE STRING
     "ICU release version to fetch (e.g. 70.1)")
 option(ICU_BUILD_SHARED "Build ICU as shared libraries" OFF)
+option(ICU_BUILD_TESTS "Build ICU test suites (cintltst, intltest)" OFF)
 set(ICU_DATA_MODE "stubdata" CACHE STRING
     "Data mode: stubdata (minimal), prebuilt (use pre-built data DLL), archive (full)")
 set_property(CACHE ICU_DATA_MODE PROPERTY STRINGS stubdata prebuilt archive)
@@ -310,6 +312,155 @@ elseif(ICU_DATA_MODE STREQUAL "prebuilt")
     message(STATUS "ICU data mode: prebuilt (${_icu_data_implib})")
 else()
     message(STATUS "ICU data mode: stubdata (minimal, no locale data)")
+endif()
+
+# ============================================================================
+# ICU Test Suites (optional)
+# ============================================================================
+# Build the upstream ICU test executables: cintltst (C tests) and intltest
+# (C++ tests). Requires ICU_DATA_MODE=archive with full data to pass.
+#
+# Usage:
+#   cmake -B build -DICU_BUILD_TESTS=ON -DICU_DATA_MODE=archive
+#   cmake --build build
+#   cd build && ctest --output-on-failure
+
+if(ICU_BUILD_TESTS)
+    enable_testing()
+
+    set(ICU_TOOLS_DIR   "${ICU_SOURCE_DIR}/tools")
+    set(ICU_TEST_DIR    "${ICU_SOURCE_DIR}/test")
+
+    # Helper: read source list from Makefile.in OBJECTS variable.
+    # More reliable than file(GLOB) — Makefile.in is the source of truth
+    # for which files to compile, and some .cpp files in the tree are not
+    # meant to be compiled standalone.
+    function(icu_read_sources_from_makefile makefile_path source_dir ext out_var)
+        file(STRINGS "${makefile_path}" _lines)
+        set(_in_objects FALSE)
+        set(_objects_line "")
+        foreach(_line ${_lines})
+            if(_line MATCHES "^OBJECTS[ \t]*=")
+                set(_in_objects TRUE)
+            endif()
+            if(_in_objects)
+                string(APPEND _objects_line " ${_line}")
+                if(NOT _line MATCHES "\\\\$")
+                    set(_in_objects FALSE)
+                endif()
+            endif()
+        endforeach()
+        # Extract .o names and convert to source files
+        string(REGEX MATCHALL "[a-zA-Z0-9_]+\\.o" _obj_files "${_objects_line}")
+        set(_sources)
+        foreach(_obj ${_obj_files})
+            string(REPLACE ".o" "" _base "${_obj}")
+            if(EXISTS "${source_dir}/${_base}.${ext}")
+                list(APPEND _sources "${source_dir}/${_base}.${ext}")
+            elseif(EXISTS "${source_dir}/${_base}.c")
+                list(APPEND _sources "${source_dir}/${_base}.c")
+            elseif(EXISTS "${source_dir}/${_base}.cpp")
+                list(APPEND _sources "${source_dir}/${_base}.cpp")
+            endif()
+        endforeach()
+        set(${out_var} ${_sources} PARENT_SCOPE)
+    endfunction()
+
+    # ── toolutil library (test dependency) ──────────────────────────────
+    file(GLOB ICU_TOOLUTIL_SOURCES "${ICU_TOOLS_DIR}/toolutil/*.cpp")
+
+    add_library(icutu STATIC ${ICU_TOOLUTIL_SOURCES})
+    icu_target_settings(icutu)
+    target_include_directories(icutu
+        PUBLIC  "${ICU_TOOLS_DIR}/toolutil"
+        PRIVATE "${ICU_COMMON_DIR}" "${ICU_I18N_DIR}"
+    )
+    target_compile_definitions(icutu PRIVATE U_TOOLUTIL_IMPLEMENTATION)
+    target_link_libraries(icutu PUBLIC icui18n icuuc)
+
+    # ── ctestfw library (test framework) ────────────────────────────────
+    file(GLOB ICU_CTESTFW_SOURCES
+        "${ICU_TOOLS_DIR}/ctestfw/*.c"
+        "${ICU_TOOLS_DIR}/ctestfw/*.cpp"
+    )
+
+    add_library(icutest STATIC ${ICU_CTESTFW_SOURCES})
+    icu_target_settings(icutest)
+    target_include_directories(icutest
+        PUBLIC  "${ICU_TOOLS_DIR}/ctestfw"
+                "${ICU_TOOLS_DIR}/ctestfw/unicode"
+        PRIVATE "${ICU_COMMON_DIR}" "${ICU_I18N_DIR}"
+                "${ICU_TOOLS_DIR}/toolutil"
+    )
+    target_compile_definitions(icutest PRIVATE U_CTESTFW_IMPLEMENTATION)
+    target_link_libraries(icutest PUBLIC icutu)
+
+    # ── cintltst (C API tests) ──────────────────────────────────────────
+    icu_read_sources_from_makefile(
+        "${ICU_TEST_DIR}/cintltst/Makefile.in"
+        "${ICU_TEST_DIR}/cintltst" "c" ICU_CINTLTST_SOURCES)
+
+    add_executable(cintltst ${ICU_CINTLTST_SOURCES})
+    icu_target_settings(cintltst)
+    target_include_directories(cintltst PRIVATE
+        "${ICU_TEST_DIR}/cintltst"
+        "${ICU_COMMON_DIR}" "${ICU_I18N_DIR}"
+        "${ICU_TOOLS_DIR}/toolutil" "${ICU_TOOLS_DIR}/ctestfw"
+    )
+    target_compile_definitions(cintltst PRIVATE
+        "U_TOPSRCDIR=\"${ICU_SOURCE_DIR}/\""
+    )
+    target_link_libraries(cintltst PRIVATE icutest icutu icui18n icuuc icudata)
+    find_package(Threads)
+    if(Threads_FOUND)
+        target_link_libraries(cintltst PRIVATE Threads::Threads)
+    endif()
+    if(UNIX)
+        target_link_libraries(cintltst PRIVATE m)
+    endif()
+
+    # -w: treat data-loading errors as warnings (compiled test data .res
+    #     files require ICU's own build tools, which we don't have).
+    # Note: 1 test (TestTZDataDir) hard-fails without compiled test
+    # resources — this is expected and does not indicate a real issue.
+    add_test(NAME cintltst COMMAND cintltst -w)
+    set_tests_properties(cintltst PROPERTIES
+        ENVIRONMENT "ICU_DATA=${ICU_DATA_ARCHIVE_DIR}"
+        PASS_REGULAR_EXPRESSION "Total error count:[ \t]*(0|1)"
+    )
+
+    # ── intltest (C++ API tests) ────────────────────────────────────────
+    icu_read_sources_from_makefile(
+        "${ICU_TEST_DIR}/intltest/Makefile.in"
+        "${ICU_TEST_DIR}/intltest" "cpp" ICU_INTLTEST_SOURCES)
+
+    add_executable(intltest ${ICU_INTLTEST_SOURCES})
+    icu_target_settings(intltest)
+    target_include_directories(intltest PRIVATE
+        "${ICU_TEST_DIR}/intltest"
+        "${ICU_COMMON_DIR}" "${ICU_I18N_DIR}"
+        "${ICU_TOOLS_DIR}/toolutil" "${ICU_TOOLS_DIR}/ctestfw"
+    )
+    target_compile_definitions(intltest PRIVATE
+        UNISTR_FROM_CHAR_EXPLICIT=
+        UNISTR_FROM_STRING_EXPLICIT=
+        "U_TOPSRCDIR=\"${ICU_SOURCE_DIR}/\""
+    )
+    target_link_libraries(intltest PRIVATE icutest icutu icui18n icuuc icudata)
+    if(Threads_FOUND)
+        target_link_libraries(intltest PRIVATE Threads::Threads)
+    endif()
+    if(UNIX)
+        target_link_libraries(intltest PRIVATE m)
+    endif()
+
+    # -w: treat data-loading errors as warnings
+    add_test(NAME intltest COMMAND intltest -w)
+    set_tests_properties(intltest PROPERTIES
+        ENVIRONMENT "ICU_DATA=${ICU_DATA_ARCHIVE_DIR}"
+    )
+
+    message(STATUS "ICU tests: cintltst, intltest (requires ICU_DATA_MODE=archive)")
 endif()
 
 # ============================================================================
