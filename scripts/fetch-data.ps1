@@ -4,16 +4,32 @@
 # Downloads the full ICU data archive for a given version.
 #
 # Usage:
-#   .\scripts\fetch-data.ps1 [-Version 79] [-OutputDir ./data]
+#   .\scripts\fetch-data.ps1 [-Version 78.3] [-OutputDir ./data]
 
 param(
-    [int]$Version = 79,
+    [string]$Version = "78.3",
     [string]$OutputDir = "./data"
 )
 
-$filename = "icudt${Version}l.dat"
-$tag = "release-${Version}-1"
-$dataUrl = "https://github.com/unicode-org/icu/releases/download/$tag/icu4c-${Version}_1-data-bin-l.zip"
+$major = ($Version -split '[.\-]')[0]
+$filename = "icudt${major}l.dat"
+
+# Tag/asset naming changed at version 78:
+#   <=77: tag=release-77-1   asset=icu4c-77_1-data-bin-l.zip
+#   >=78: tag=release-78.3   asset=icu4c-78.3-data-bin-l.zip
+if ([int]$major -ge 78) {
+    $tag = "release-${Version}"
+    $dataUrl = "https://github.com/unicode-org/icu/releases/download/$tag/icu4c-${Version}-data-bin-l.zip"
+} else {
+    $tagVer = $Version -replace '\.', '-'
+    $assetVer = $Version -replace '\.', '_'
+    if ($assetVer -notmatch '_') {
+        $tagVer = "${tagVer}-1"
+        $assetVer = "${assetVer}_1"
+    }
+    $tag = "release-${tagVer}"
+    $dataUrl = "https://github.com/unicode-org/icu/releases/download/$tag/icu4c-${assetVer}-data-bin-l.zip"
+}
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
