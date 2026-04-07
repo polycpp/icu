@@ -90,6 +90,18 @@ cd build && ctest --output-on-failure
 - Linux (GCC 10+, Clang 12+)
 - macOS (Clang 12+)
 
+## Build Verification
+
+| Platform | Compiler | Status |
+|----------|----------|--------|
+| Windows x64 | MSVC 19.50 (VS 2026) | Verified |
+| Windows x64 | MSVC 19.40+ (VS 2022) | Supported |
+| Linux x64 | GCC 10+ | Supported |
+| Linux x64 | Clang 12+ | Supported |
+| macOS | Apple Clang 12+ | Supported |
+
+Verified on 2026-04-07 with CMake 4.2 and Visual Studio 2026.
+
 ## License
 
 The CMake build scripts in this repository are MIT licensed.
