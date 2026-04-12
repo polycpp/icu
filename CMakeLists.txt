@@ -28,12 +28,19 @@ project(icu-cmake VERSION 73.2 LANGUAGES C CXX)
 #   ICU_BUILD_TESTS — Build ICU test suites: cintltst, intltest (default OFF)
 
 set(ICU_VERSION "73.2" CACHE STRING
-    "ICU release version to fetch (e.g. 73.1, 73.2)")
+    "ICU release version to fetch (e.g. 73.2)")
 option(ICU_BUILD_SHARED "Build ICU as shared libraries" OFF)
 option(ICU_BUILD_TESTS "Build ICU test suites (cintltst, intltest)" OFF)
-set(ICU_DATA_MODE "stubdata" CACHE STRING
+set(ICU_DATA_MODE "archive" CACHE STRING
     "Data mode: stubdata (minimal), prebuilt (use pre-built data DLL), archive (full)")
 set_property(CACHE ICU_DATA_MODE PROPERTY STRINGS stubdata prebuilt archive)
+option(ICU_DATA_AUTO_FETCH
+    "Automatically download ICU data archive when ICU_DATA_MODE=archive and icudt*.dat is missing"
+    ON)
+set(ICU_DATA_DOWNLOAD_DIR "${CMAKE_CURRENT_BINARY_DIR}/_downloads" CACHE PATH
+    "Directory used to cache downloaded ICU data archives")
+set(ICU_DATA_ARCHIVE_URL "" CACHE STRING
+    "Override URL for ICU data archive zip (advanced)")
 
 # For prebuilt mode: path to directory containing icudt<ver>.dll and icudt.lib
 set(ICU_PREBUILT_DIR "" CACHE PATH
@@ -67,6 +74,26 @@ file(STRINGS "${ICU_SOURCE_DIR}/common/unicode/uvernum.h" _icu_version_line
      REGEX "^#define U_ICU_VERSION_MAJOR_NUM")
 string(REGEX MATCH "[0-9]+" ICU_MAJOR_VERSION "${_icu_version_line}")
 message(STATUS "ICU version: ${ICU_MAJOR_VERSION}")
+
+function(icu_data_archive_url version major out_url out_zip_name)
+    if(major GREATER_EQUAL 78)
+        set(_tag "release-${version}")
+        set(_zip "icu4c-${version}-data-bin-l.zip")
+    else()
+        string(REPLACE "." "-" _tag_ver "${version}")
+        string(REPLACE "." "_" _asset_ver "${version}")
+        if(NOT _asset_ver MATCHES "_")
+            set(_tag_ver "${_tag_ver}-1")
+            set(_asset_ver "${_asset_ver}_1")
+        endif()
+        set(_tag "release-${_tag_ver}")
+        set(_zip "icu4c-${_asset_ver}-data-bin-l.zip")
+    endif()
+
+    set(_url "https://github.com/unicode-org/icu/releases/download/${_tag}/${_zip}")
+    set(${out_url} "${_url}" PARENT_SCOPE)
+    set(${out_zip_name} "${_zip}" PARENT_SCOPE)
+endfunction()
 
 # ── Common settings ─────────────────────────────────────────────────────────
 
@@ -302,12 +329,66 @@ add_library(ICU::data ALIAS icudata)
 if(ICU_DATA_MODE STREQUAL "archive")
     set(ICU_DATA_ARCHIVE_DIR "${CMAKE_CURRENT_BINARY_DIR}/data"
         CACHE PATH "Directory containing icudt${ICU_MAJOR_VERSION}l.dat")
+    set(_icu_data_dat_file "${ICU_DATA_ARCHIVE_DIR}/icudt${ICU_MAJOR_VERSION}l.dat")
+
+    if(NOT EXISTS "${_icu_data_dat_file}")
+        if(ICU_DATA_AUTO_FETCH)
+            if(ICU_DATA_ARCHIVE_URL)
+                set(_icu_data_url "${ICU_DATA_ARCHIVE_URL}")
+                get_filename_component(_icu_data_zip_name "${ICU_DATA_ARCHIVE_URL}" NAME)
+            else()
+                icu_data_archive_url("${ICU_VERSION}" "${ICU_MAJOR_VERSION}"
+                    _icu_data_url _icu_data_zip_name)
+            endif()
+
+            if(NOT _icu_data_zip_name)
+                message(FATAL_ERROR
+                    "Could not determine ICU data archive filename for URL: ${_icu_data_url}")
+            endif()
+
+            file(MAKE_DIRECTORY "${ICU_DATA_ARCHIVE_DIR}")
+            file(MAKE_DIRECTORY "${ICU_DATA_DOWNLOAD_DIR}")
+
+            set(_icu_data_zip_file "${ICU_DATA_DOWNLOAD_DIR}/${_icu_data_zip_name}")
+
+            if(NOT EXISTS "${_icu_data_zip_file}")
+                message(STATUS "Downloading ICU data archive: ${_icu_data_url}")
+                file(DOWNLOAD "${_icu_data_url}" "${_icu_data_zip_file}"
+                    SHOW_PROGRESS
+                    STATUS _icu_data_download_status)
+                list(GET _icu_data_download_status 0 _icu_data_download_code)
+                list(GET _icu_data_download_status 1 _icu_data_download_message)
+                if(NOT _icu_data_download_code EQUAL 0)
+                    file(REMOVE "${_icu_data_zip_file}")
+                    message(FATAL_ERROR
+                        "Failed to download ICU data archive (${_icu_data_download_code}): "
+                        "${_icu_data_download_message}\nURL: ${_icu_data_url}")
+                endif()
+            else()
+                message(STATUS "Using cached ICU data archive: ${_icu_data_zip_file}")
+            endif()
+
+            message(STATUS "Extracting ICU data archive to: ${ICU_DATA_ARCHIVE_DIR}")
+            file(ARCHIVE_EXTRACT
+                INPUT "${_icu_data_zip_file}"
+                DESTINATION "${ICU_DATA_ARCHIVE_DIR}")
+        else()
+            message(FATAL_ERROR
+                "ICU_DATA_MODE=archive requires ${_icu_data_dat_file}, but it was not found.\n"
+                "Enable ICU_DATA_AUTO_FETCH=ON or download data manually with scripts/fetch-data.sh")
+        endif()
+    endif()
+
+    if(NOT EXISTS "${_icu_data_dat_file}")
+        message(FATAL_ERROR
+            "Expected ICU data archive not found: ${_icu_data_dat_file}")
+    endif()
 
     target_compile_definitions(icuuc PRIVATE
         "ICU_DATA_DIR=\"${ICU_DATA_ARCHIVE_DIR}/\""
     )
 
-    message(STATUS "ICU data mode: archive (${ICU_DATA_ARCHIVE_DIR})")
+    message(STATUS "ICU data mode: archive (${_icu_data_dat_file})")
 elseif(ICU_DATA_MODE STREQUAL "prebuilt")
     message(STATUS "ICU data mode: prebuilt (${_icu_data_implib})")
 else()
@@ -438,7 +519,7 @@ if(ICU_BUILD_TESTS)
     icu_target_settings(intltest)
     target_include_directories(intltest PRIVATE
         "${ICU_TEST_DIR}/intltest"
-        "${ICU_COMMON_DIR}" "${ICU_I18N_DIR}"
+        "${ICU_COMMON_DIR}" "${ICU_I18N_DIR}" "${ICU_SOURCE_DIR}/io"
         "${ICU_TOOLS_DIR}/toolutil" "${ICU_TOOLS_DIR}/ctestfw"
     )
     target_compile_definitions(intltest PRIVATE
