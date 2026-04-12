@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [icu/78, master]
+  pull_request:
+    branches: [icu/78, master]
+
+jobs:
+  windows:
+    name: Windows (${{ matrix.data_mode }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - data_mode: archive
+            build_tests: ON
+            python: false
+          - data_mode: build
+            build_tests: ON
+            python: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3
+        if: matrix.python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DICU_BUILD_TESTS=${{ matrix.build_tests }}
+          -DICU_DATA_MODE=${{ matrix.data_mode }}
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        working-directory: build
+        run: ctest --build-config Release --output-on-failure --timeout 300

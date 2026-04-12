@@ -1,5 +1,7 @@
 # icu-cmake - ICU 78
 
+[![CI](https://github.com/polycpp/icu/actions/workflows/ci.yml/badge.svg?branch=icu/78)](https://github.com/polycpp/icu/actions/workflows/ci.yml)
+
 CMake build wrapper for [ICU4C](https://github.com/unicode-org/icu) (International Components for Unicode).
 
 This branch builds **ICU 78** (defaults to release-78.3). To use a different
