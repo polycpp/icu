@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [icu/75]
+  pull_request:
+    branches: [icu/75]
+
+jobs:
+  windows:
+    name: Windows (archive)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -B build -DICU_BUILD_TESTS=ON -DICU_DATA_MODE=archive
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        working-directory: build
+        run: ctest --build-config Release --output-on-failure --timeout 300
